@@ -1,35 +1,18 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
-
-#define USE_MIDI
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 // ESP32 default pin definition ("-1" means that this channel is unused):
 // For older prototypes or custom implementations, simply change the GPIO numbers in the table below
 // to match your hardware (note that the GPIO assignment of Prototype 2 is the same as Prototype 4).
 // clang-format off
-// analog pins setup:               snare | kick | hi-hat | hi-hat-ctrl | crash | tom1 | ride | tom2 | tom3
-static int analog_pins4[]         = { 36,    33,     32,       25,         34,     39,    27,    12,    15 };
-static int analog_pins_rimshot4[] = { 35,    -1,     26,       -1,         14,     -1,    13,    -1,    -1 };
+// analog pins setup:               snare | kick | hi-hat | hi-hat-ctrl | crash | tom1 | ride | tom2 | tom3 | crash2
+static int analog_pins4[]         = { 36,    33,     32,       25,         34,     39,    27,    12,    15,     4 };
+static int analog_pins_rimshot4[] = { 35,    -1,     26,       -1,         14,     -1,    13,    -1,    -1,     0 };
 // clang-format on
 
 // if you want to use less number of pads, simply adjust number_pads4 value
-// const int number_pads4 = sizeof ( analog_pins4 ) / sizeof ( int ); // example: use all inputs defined in analog_pins4
-// const int number_pads4 = 8; // example: do not use tom3 and shrink number of pads from 9 to 8
-const int number_pads4 = 3;
+// const int number_pads4 = sizeof(analog_pins4) / sizeof(int); // example: use all inputs defined in analog_pins4
+const int number_pads4 = 9; // example: do not use crash2 and shrink number of pads from 10 to 9
 // const int number_pads4 = 1; // example: just one single pad
 
 #include "edrumulus.h"
@@ -450,6 +433,7 @@ void preset_settings()
   edrumulus.set_midi_notes(6, 51, 53 /*59*/);          // ride (edge: 59, bell: 53)
   edrumulus.set_midi_notes(7, 45, 47);                 // tom 2
   edrumulus.set_midi_notes(8, 43, 58);                 // tom 3
+  edrumulus.set_midi_notes(9, 57, 52);                 // crash 2
 
   // default drum kit setup
   edrumulus.set_pad_type(0, Pad::PD8);  // snare
@@ -461,6 +445,7 @@ void preset_settings()
   edrumulus.set_pad_type(6, Pad::CY8);  // ride
   edrumulus.set_pad_type(7, Pad::TP80); // tom 2
   edrumulus.set_pad_type(8, Pad::TP80); // tom 3
+  edrumulus.set_pad_type(9, Pad::CY6);  // crash 2
 }
 
 void loop()
@@ -524,6 +509,12 @@ void loop()
   }
 
 #ifdef USE_MIDI
+  // load indicator
+  if (const int load = edrumulus.get_load_indicator(); load >= 0)
+  {
+    MYMIDI.sendNoteOff(124, load, 1);
+  }
+
   // send MIDI note to drum synthesizer
   for (int pad_idx = 0; pad_idx < number_pads; pad_idx++)
   {
@@ -726,33 +717,10 @@ void loop()
       // controller 111: enable/disable rim shot and positional sensing support
       if (controller == 111)
       {
-        switch (value)
-        {
-          case 0:
-            edrumulus.set_rim_shot_is_used(selected_pad, false);
-            edrumulus.write_setting(selected_pad, 7, false);
-            edrumulus.set_pos_sense_is_used(selected_pad, false);
-            edrumulus.write_setting(selected_pad, 8, false);
-            break;
-          case 1:
-            edrumulus.set_rim_shot_is_used(selected_pad, true);
-            edrumulus.write_setting(selected_pad, 7, true);
-            edrumulus.set_pos_sense_is_used(selected_pad, false);
-            edrumulus.write_setting(selected_pad, 8, false);
-            break;
-          case 2:
-            edrumulus.set_rim_shot_is_used(selected_pad, false);
-            edrumulus.write_setting(selected_pad, 7, false);
-            edrumulus.set_pos_sense_is_used(selected_pad, true);
-            edrumulus.write_setting(selected_pad, 8, true);
-            break;
-          case 3:
-            edrumulus.set_rim_shot_is_used(selected_pad, true);
-            edrumulus.write_setting(selected_pad, 7, true);
-            edrumulus.set_pos_sense_is_used(selected_pad, true);
-            edrumulus.write_setting(selected_pad, 8, true);
-            break;
-        }
+        edrumulus.set_rim_shot_is_used(selected_pad, (value % 2) != 0);        // 0 1 0 1
+        edrumulus.write_setting(selected_pad, 7, (value % 2) != 0);            // 0 1 0 1
+        edrumulus.set_pos_sense_is_used(selected_pad, ((value / 2) % 2) != 0); // 0 0 1 1
+        edrumulus.write_setting(selected_pad, 8, ((value / 2) % 2) != 0);      // 0 0 1 1
         confirm_setting(controller, value, false);
       }
 
@@ -843,6 +811,13 @@ void loop()
         edrumulus.write_setting(selected_pad, 18, value);
         confirm_setting(controller, value, false);
       }
+
+      // controller 123: load indicator
+      if (controller == 123)
+      {
+        edrumulus.set_enable_load_indicator(value);
+        confirm_setting(controller, value, false);
+      }
     }
   }
 #endif
@@ -877,7 +852,9 @@ void confirm_setting(const int  controller,
     MYMIDI.sendNoteOff(120, edrumulus.get_coupled_pad_idx(selected_pad), 1);
     MYMIDI.sendNoteOff(121, edrumulus.get_rim_pos_threshold(selected_pad), 1);
     MYMIDI.sendNoteOff(122, edrumulus.get_rim_pos_sensitivity(selected_pad), 1);
-    // NOTE: 125 reserved for error message
+    // NOTE: 123 is load indicator setting which is not stored
+    // NOTE: 124 is reserved for load indicator
+    // NOTE: 125 is reserved for error message
     MYMIDI.sendNoteOff(126, VERSION_MINOR, 1);
     MYMIDI.sendNoteOff(127, VERSION_MAJOR, 1);
   }

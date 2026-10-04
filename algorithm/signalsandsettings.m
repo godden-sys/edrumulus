@@ -1,19 +1,5 @@
-%*******************************************************************************
-% Copyright (c) 2020-2024
-% Author(s): Volker Fischer
-%*******************************************************************************
-% This program is free software; you can redistribute it and/or modify it under
-% the terms of the GNU General Public License as published by the Free Software
-% Foundation; either version 2 of the License, or (at your option) any later
-% version.
-% This program is distributed in the hope that it will be useful, but WITHOUT
-% ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-% FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-% details.
-% You should have received a copy of the GNU General Public License along with
-% this program; if not, write to the Free Software Foundation, Inc.,
-% 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-%*******************************************************************************
+% Copyright (c) 2020-2026 Volker Fischer
+% SPDX-License-Identifier: GPL-2.0-or-later
 
 function [x, pad] = signalsandsettings(is_called_from_other_function)
 
@@ -32,6 +18,7 @@ padtype = 'pd120'; % default
 %x = audioread("signals/teensy4_0_pd80r_hot_spot.wav");x=(x-mean(x))*4;padtype='pd80r';
 %x = audioread("signals/teensy4_0_pd120_hot_spot.wav");x=(x-mean(x))*4;
 %x = audioread("signals/esp32_pd120.wav");x=x/8;
+x = audioread("signals/esp32_pd120_hot_spot.wav");x=x/8;
 %x = audioread("signals/esp32_pd8.wav");x=x/8;padtype='pd8';
 %x = audioread("signals/pd120_pos_sense.wav");%x=x(10600:15000);%x = x(2900:10000, :);%x = x(55400:58000, :);%
 %x = audioread("signals/pd120_pos_sense2.wav");
@@ -46,7 +33,8 @@ padtype = 'pd120'; % default
 %x = audioread("signals/pd80r_hot_spot.wav");padtype='pd80r';%x = x(191700:192400, :);%
 %x = audioread("signals/pd80r_no_hot_spot.wav");padtype='pd80r';
 %x = audioread("signals/pd80r_rimshot_issue.wav");padtype='pd80r';
-x = audioread("signals/pd85rimshotpossense.wav");padtype='pd80r';
+%x = audioread("signals/pd85rimshotpossense.wav");padtype='pd80r';
+%x = audioread("signals/hd120.wav");padtype='hd120';x = x(1:75500, :);%x = x(75500:end, :);
 %x = audioread("signals/pda120ls.wav");x=x(:,1);padtype='pda120ls';x = x(1:630000, :);%x = x(1.06e6:end, :);%x = x(840000:930000, :);%
 %x = audioread("signals/pda120ls_2.wav");x=x(:,1);padtype='pda120ls';x = x(1:210000, :);
 %x = audioread("signals/pda120ls_multpiezotest.wav");padtype='pda120ls';
@@ -83,7 +71,7 @@ x = audioread("signals/pd85rimshotpossense.wav");padtype='pd80r';
 x = x * 25000;
 
 
-  
+
 % pad PRESET settings first, then overwrite these with pad specific properties
 pad.threshold_db                    = 17;
 pad.mask_time_ms                    = 6;
@@ -115,6 +103,12 @@ switch padtype
   case 'pd120'
     % note: the PRESET settings are from the PD120 pad
     pad.hot_spot_attenuation_db = 3;
+  case 'hd120'
+    pad.threshold_db              = 44;
+    pad.scan_time_ms              = 4.5;
+    pad.decay_grad_fact2          = 90;
+    pad.decay_len_ms2             = 500;
+    pad.rim_use_low_freq_bp       = false;
   case 'lehhs12c'
     pad.scan_time_ms              = 4;
     pad.decay_fact_db             = 5;

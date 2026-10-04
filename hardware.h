@@ -1,19 +1,5 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
@@ -52,8 +38,7 @@ class Edrumulus_hardware
 
   void capture_samples(const int number_pads,
                        const int number_inputs[],
-                       int       analog_pin[][MAX_NUM_PAD_INPUTS],
-                       int       sample_org[][MAX_NUM_PAD_INPUTS]);
+                       uint16_t  sample_org[][MAX_NUM_PAD_INPUTS]);
 
   void write_setting(const int pad_index, const int address, const byte value);
   byte read_setting(const int pad_index, const int address);
@@ -106,11 +91,10 @@ class Edrumulus_hardware
 
   void capture_samples(const int number_pads,
                        const int number_inputs[],
-                       int       analog_pin[][MAX_NUM_PAD_INPUTS],
-                       int       sample_org[][MAX_NUM_PAD_INPUTS]);
+                       uint16_t  sample_org[][MAX_NUM_PAD_INPUTS]);
 
-  void write_setting(const int, const int, const byte){}; // not supported
-  byte read_setting(const int, const int) { return 0; };  // not supported
+  void write_setting(const int, const int, const byte) {}; // not supported
+  byte read_setting(const int, const int) { return 0; };   // not supported
 
  protected:
   int                        Fs;

@@ -1,82 +1,94 @@
-%*******************************************************************************
-% Copyright (c) 2020-2024
-% Author(s): Volker Fischer
-%*******************************************************************************
-% This program is free software; you can redistribute it and/or modify it under
-% the terms of the GNU General Public License as published by the Free Software
-% Foundation; either version 2 of the License, or (at your option) any later
-% version.
-% This program is distributed in the hope that it will be useful, but WITHOUT
-% ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-% FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-% details.
-% You should have received a copy of the GNU General Public License along with
-% this program; if not, write to the Free Software Foundation, Inc.,
-% 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-%*******************************************************************************
+% Copyright (c) 2020-2026 Volker Fischer
+% SPDX-License-Identifier: GPL-2.0-or-later
 
 % capture samples which were recorded on the ESP32 device
 
 close all
 pkg load instrument-control
-pkg load statistics
 
 
-do_input_capture = false;
+% optionally, post process recorded data
+if false
 
+  load('recording2026-01-20-08-34-33.mat');
+  o{1} = out;
+  load('recording2026-01-20-08-37-55.mat');
+  o{2} = out;
+  load('recording2026-01-20-08-41-06.mat');
+  o{3} = out;
+  load('recording2026-01-20-08-42-15.mat');
+  o{4} = out;
+  load('recording2026-01-20-08-43-25.mat');
+  o{5} = out;
+  load('recording2026-01-20-08-44-28.mat');
+  o{6} = out;
 
-% #ifdef DO_INPUT_CAPTURE ------------------------------------------------------
-if do_input_capture
+  % o1:
+  id{1} = [     4,        6,      8,      9,     10];
+  rg{1} = {1:8426, 400:8100, 1:8000, 1:8000, 1:7800};
+  % o2:
+  id{2} = [     5,       10];
+  rg{2} = {1:7400, 600:8300};
+  % o3:
+  id{3} = [     2,      6,      7,      9,     10];
+  rg{3} = {1:7300, 1:8390, 1:7400, 1:7600, 1:7700};
+  % o4:
+  id{4} = [       4,      5,        9];
+  rg{4} = {400:7800, 1:8400, 600:8000};
+  % o5:
+  id{5} = [        3,      4,      5,      7,      8,       10];
+  rg{5} = {1000:8000, 1:8400, 1:8000, 1:8000, 1:8400, 600:8200};
+  % o6:
+  id{6} = [     3,        4,      6,      7,      9];
+  rg{6} = {1:7700, 800:7900, 1:8000, 1:7300, 1:7300};
 
-  % prepare serial port
-  try
-    a = serialport("/dev/ttyUSB0", 500000); % note that we increased the transfer rate, now it is different from the default
-  catch
+  %n = 1;
+  %for i = 1:length(id{n})
+  %  cur_id = id{n}(i);
+  %  figure; plot(o{n}{cur_id}); title(num2str(cur_id));
+  %  %figure; plot(o{n}{cur_id}(rg{n}{i})); title(num2str(cur_id));
+  %end
+
+  out = [];
+  for n = 1:length(id)
+    for i = 1:length(id{n})
+      cur_id = id{n}(i);
+      out    = [out; o{n}{cur_id}(rg{n}{i})];
+    end
   end
-  flush(a);
+  out = out(~isnan(out));
+  figure; plot(out);
+  audiowrite('testout.wav', (out - mean(out)) / 4096, 8000);
 
-  val = double(fread(a, 1 * 8000));
-  marker_pos = find(val == 255);
-
-  val = val(marker_pos(1):end);
-  val(1 + marker_pos - marker_pos(1)) = [];
-  if mod(length(val), 2) ~= 0
-    val = val(1:end - 1);
-  end
-  x = val(1:2:end) * 255 + val(2:2:end);
-
-  % the data seems to be corrupt, remove obviously incorrect data
-  x(x > 2^12) = nan;
-
-  figure; subplot(2, 1, 1), plot(x); grid on; title('raw linear sample data');
-  axis([0, length(x), 0, 2^12]);
-
-  subplot(2, 1, 2), plot(20 * log10(abs(x - nanmean(x)))); grid on; ylabel('dB'); title('power');
-
-  %audiowrite('testout.wav',(x-1893)/4096,8000);
+  return;
+end
 
 
-% #ifdef DO_INPUT_BUFFER_CAPTURE -----------------------------------------------
-else
 
-  % prepare serial port
-  try
-    a = serialport("/dev/ttyUSB0", 115200);
-    set(a, 'bytesize', 8);
-    set(a, 'parity', 'n');
-    set(a, 'stopbits', 1);
-  catch
-  end
 
-% Windows: Enable the flush once and then disable it to get correct results:
-%flush(a);
 
-% TEST
-number_samples = 500;%50000;
+% prepare serial port
+try
+  a = serialport("/dev/ttyUSB0", 115200);
+  %set(a, 'bytesize', 8);
+  %set(a, 'parity', 'n');
+  %set(a, 'stopbits', 1);
+catch
+  disp('error');
+end
 
-  out = zeros(number_samples, 12);
 
-  for i = 1:number_samples
+figure;
+
+N = 3;
+out = cell(N, 1);
+
+for k = 1:N
+
+  block_end_found = false;
+  out{k} = [];
+
+  while ~block_end_found
 
     % carriage return is 13 + 10 -> use 10 as start and 13 as end marker
     while fread(a, 1) ~= 10
@@ -84,11 +96,9 @@ number_samples = 500;%50000;
 
     end_found = false;
     samples   = '';
-test=[];
     while ~end_found
 
       x = fread(a, 1);
-test = [test;x];
       samples = [samples, char(x)];
 
       if x == 13
@@ -105,17 +115,26 @@ test = [test;x];
       disp(test)
     end_try_catch
 
-    for j = 1:length(y)
-      out(i, j) = str2double(y{j});
+    if length(y) == 1
+      out{k} = [out{k}; str2double(y{1})];
+    else
+      block_end_found = true;
     end
 
   end
 
-  figure; plot(out, '.-')
-  %disp(out)
-
-  save -ascii 'recording.txt' out
+  plot(out{k}, '.-');
+  drawnow;
 
 end
+
+%disp(out)
+
+%fn = strcat('recording', datestr(now, 'yyyy-mm-dd-HH-MM-SS'), '.mat');
+%save(fn, 'out');
+%system('play -q -n synth 0.2 sine 1000');
+
+clear a
+
 
 

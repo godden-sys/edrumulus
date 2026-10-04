@@ -1,19 +1,5 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
@@ -100,11 +86,13 @@ class Edrumulus
 
   void set_spike_cancel_level(const int new_level) { spike_cancel_level = new_level; }
   int  get_spike_cancel_level() { return spike_cancel_level; }
+  void set_enable_load_indicator(const int new_enabled) { use_load_indicator = new_enabled != 0; }
 
   // error and overload handling (implement blinking LED for error using error_LED_blink_time)
   bool get_status_is_error() { return status_is_error && ((error_LED_cnt % error_LED_blink_time) < (error_LED_blink_time / 2)); }
   bool get_status_is_overload() { return status_is_overload; }
   int  get_status_dc_offset_error_channel() { return dc_offset_error_channel; }
+  int  get_load_indicator() { return load_indicator; }
 
   // persistent settings storage
   void write_setting(const int pad_index, const int address, const byte value) { edrumulus_hardware.write_setting(pad_index, address, value); }
@@ -112,14 +100,15 @@ class Edrumulus
 
  protected:
   // constant definitions
-  const int   Fs                       = 8000;  // this is the most fundamental system parameter: system sampling rate
-  const float dc_offset_est_len_s      = 1.25f; // length of initial DC offset estimation in seconds
-  const int   samplerate_max_cnt_len_s = 1.25f; // time interval for sampling rate estimation in seconds
-  const int   samplerate_max_error_Hz  = 200;   // tolerate a sample rate deviation of 200 Hz
-  const float dc_offset_max_rel_error  = 0.25f; // DC offset limit from ADC middle position, where offset is defined relative to ADC maximum value
-  const int   cancel_time_ms           = 30;    // on same stand approx. 10 ms + some margin (20 ms)
-  const float overload_LED_on_time_s   = 0.25f; // minimum overload LED on time (e.g., 250 ms)
-  const float error_LED_blink_time_s   = 0.25f; // LED blink time on error (e.g., 250 ms)
+  const int   Fs                           = 8000;  // this is the most fundamental system parameter: system sampling rate
+  const float dc_offset_est_len_s          = 1.25f; // length of initial DC offset estimation in seconds
+  const float samplerate_max_cnt_len_s     = 1.25f; // time interval for sampling rate estimation in seconds
+  const float load_indicator_max_cnt_len_s = 1.25f; // time interval for load indicator update in seconds
+  const int   samplerate_max_error_Hz      = 200;   // tolerate a sample rate deviation of 200 Hz
+  const float dc_offset_max_rel_error      = 0.25f; // DC offset limit from ADC middle position, where offset is defined relative to ADC maximum value
+  const int   cancel_time_ms               = 30;    // on same stand approx. 10 ms + some margin (20 ms)
+  const float overload_LED_on_time_s       = 0.25f; // minimum overload LED on time (e.g., 250 ms)
+  const float error_LED_blink_time_s       = 0.25f; // LED blink time on error (e.g., 250 ms)
 
 #ifdef ESP_PLATFORM
   // for ESP we have a coupling of ADC inputs so that a hi-hat control pedal movement may
@@ -146,9 +135,9 @@ class Edrumulus
   int                stored_overload_detected_coupled_head[MAX_NUM_PAD_INPUTS];
   int                stored_overload_detected_coupled_rim[MAX_NUM_PAD_INPUTS];
   double             dc_offset[MAX_NUM_PADS][MAX_NUM_PAD_INPUTS]; // must be double type for IIR filter
-  int                sample_org[MAX_NUM_PADS][MAX_NUM_PAD_INPUTS];
+  uint16_t           sample_org[MAX_NUM_PADS][MAX_NUM_PAD_INPUTS];
   int                dc_offset_est_len;
-  float              dc_offset_iir_gamma;
+  double             dc_offset_iir_gamma;
   float              dc_offset_iir_one_minus_gamma;
   int                spike_cancel_level;
   int                overload_LED_cnt;
@@ -161,6 +150,12 @@ class Edrumulus
   int                samplerate_max_cnt;
   int                samplerate_prev_micros_cnt;
   unsigned long      samplerate_prev_micros;
+  bool               use_load_indicator;
+  int                load_indicator;
+  int                load_indicator_max_cnt;
+  int                load_indicator_cnt;
+  unsigned long      load_indicator_prev_micros;
+  unsigned long      load_indicator_sum;
   int                dc_offset_min_limit;
   int                dc_offset_max_limit;
   Pad                pad[MAX_NUM_PADS];

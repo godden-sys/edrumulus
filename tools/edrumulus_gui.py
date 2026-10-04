@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
 
-#*******************************************************************************
-# Copyright (c) 2022-2024
-# Author(s): Volker Fischer, Tobias Fischer
-#*******************************************************************************
-# This program is free software; you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation; either version 2 of the License, or (at your option) any later
-# version.
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-# details.
-# You should have received a copy of the GNU General Public License along with
-# this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-#*******************************************************************************
+# Copyright (c) 2022-2026 Volker Fischer
+# SPDX-License-Identifier: GPL-2.0-or-later
 
 # Edrumulus simple terminal GUI
 
@@ -23,11 +9,9 @@ import os, sys, signal, socket, time, threading, math, platform, pathlib
 
 use_rtmidi  = "rtmidi"    in sys.argv # use this for native USB MIDI devices like Teensy
 use_jack    = "jack"      in sys.argv # if jack audio shall be used
-no_gui      = "no_gui"    in sys.argv # no GUI but blocking (just settings management)
 non_block   = "non_block" in sys.argv # no GUI and non-blocking (just settings management)
-use_lcd     = "lcd"       in sys.argv # LCD GUI mode on Raspberry Pi
 use_webui   = "webui"     in sys.argv # web UI GUI mode on Raspberry Pi
-use_ncurses = not no_gui and not non_block and not use_lcd and not use_webui # normal console GUI mode (default)
+use_ncurses = not non_block and not use_webui # normal console GUI mode (default)
 use_serial  = not use_rtmidi and not use_jack # serial connection (default)
 is_windows  = platform.system() == "Windows"
 if use_rtmidi:
@@ -46,10 +30,7 @@ elif use_serial:
     serial_dev = "/dev/ttyUSB0" if platform.system() == "Linux" else ("COM7" if is_windows else "/dev/tty.SLAB_USBtoUART")
 else:
   import jack
-if use_lcd:
-  import RPi.GPIO as GPIO
-  from RPLCD.gpio import CharLCD
-elif use_ncurses:
+if use_ncurses:
   import curses
 elif use_webui:
   import http.server
@@ -62,10 +43,11 @@ pad_types_dict = {"PDA120LS Roland Mesh Pad":18, "PDX100 Roland Mesh Pad":19, "P
                     "HD1TOM Roland Rubber Pad":12, "TP80 Yamaha Rubber Pad":7, \
                   "CY8 Roland Cymbal":9, "CY6 Roland Cymbal":8, "CY5 Roland Cymbal":11, "VH12 Roland Hi-Hat":4, \
                     "MPS-750X Millenium Ride":24, "MPS-750X Millenium Crash":25, "LEHHS12C Lemon Hi-Hat Cymbal":26, \
+                    "HD-120 Millenium Cymbal":28, \
                   "KD120 Roland Mesh Kick Pad":16, "KD8 Roland Kick Pad":14, \
                     "KD7 Roland Kick Pad":6, "KT10 Roland Kick Pedal":20, "MPS-750X Millenium Kick Pad":23, \
                   "FD8 Roland Hi-Hat Pedal":3, "VH12CTRL Roland Hi-Hat Pedal":5, "LEHHS12CCTRL Lemon Hi-Hat Pedal":27}
-pad_names    = ["snare", "kick", "hi-hat", "ctrl", "crash", "tom1", "ride", "tom2", "tom3"]
+pad_names    = ["snare", "kick", "hi-hat", "ctrl", "crash", "tom1", "ride", "tom2", "tom3", "crash2"]
 curve_types  = ["LINEAR", "EXP1", "EXP2", "LOG1", "LOG2"]
 cmd_names    = [                 "type", "thresh", "sens", "pos thres", "pos sens", "rim thres", "mask"]
 cmd_val      = [                    102,      103,    104,         105,        106,         107,    118]
@@ -92,7 +74,9 @@ midi_map                = {}
 midi_send_cmd           = -1 # invalidate per default
 midi_previous_send_cmd  = -1
 midi_send_val           = -1
-auto_pad_sel            = False; # no auto pad selection per default
+auto_pad_sel            = False # no auto pad selection per default
+load_indicator          = False # no load indicator per default
+load_indicator_percent  = -1
 is_load_settings        = False
 error_value             = 0
 settings_file           = pathlib.Path(__file__).parent.joinpath("settings", "trigger_settings.txt")
@@ -109,7 +93,7 @@ if use_jack:
 # Common GUI functions #########################################################
 ################################################################################
 def process_user_input(ch):
-  global sel_pad, sel_cmd, database, auto_pad_sel
+  global sel_pad, sel_cmd, database, auto_pad_sel, load_indicator
   if ch == "s" and sel_pad < len(pad_names) - 1:
     send_value_to_edrumulus(108, sel_pad := sel_pad + 1)
   elif ch == "S" and sel_pad > 0:
@@ -140,12 +124,14 @@ def process_user_input(ch):
       if database[sel_cmd] > 0:
         database[sel_cmd] -= 1
         send_value_to_edrumulus(cmd_val[sel_cmd], database[sel_cmd])
-  elif ch == "a" or ch == "A": # enable/disable auto pad selection
-    auto_pad_sel = ch == "a" # capital "A" disables auto pad selection
   elif (ch == "k" or ch == "K") and use_jack: # kit selection (only for jack audio mode)
     ecasound_switch_chains(ch == "k")
   elif (ch == "v" or ch == "V") and use_jack: # kit volume (only for jack audio mode)
     ecasound_kit_volume(ch == "v")
+  elif ch == "a": # toggle auto pad selection
+    auto_pad_sel = not auto_pad_sel
+  elif ch == "l": # toggle load indicator
+    send_value_to_edrumulus(123, load_indicator := not load_indicator)
 
 def get_linear_pad_type_index(d):
   return pad_types_dict_list.index([k for k, v in pad_types_dict.items() if v == d][0])
@@ -199,9 +185,11 @@ def ncurses_update_param_outputs():
     mainwin.addstr(row_start + 4, col_start, "                             ")
   if v_major >= 0 and v_minor >= 0:
     mainwin.addstr(row_start - 1, col_start, "Edrumulus v{0}.{1}".format(v_major, v_minor))
+  if load_indicator and load_indicator_percent >= 0:
+    mainwin.addstr(row_start - 1, col_start + 30, "Load {:.1f} %".format(load_indicator_percent))
   if sel_kit:
     mainwin.addstr(row_start - 1, col_start + 30, sel_kit + ", Kit-Vol: " + kit_vol_str if kit_vol_str else sel_kit)
-  mainwin.addstr(row_start, col_start, "Press a key (q:quit; s,S:sel pad; c,C:sel command; a,A: auto pad sel; up,down: change param; r: reset)")
+  mainwin.addstr(row_start, col_start, "q:quit; s,S:sel pad; c,C:sel command; ^,v: sel param; a: auto pad sel, l:load; r: reset")
   if auto_pad_sel:
     mainwin.addstr(row_start + 2, col_start, "Selected pad (auto):       {:2d} ({:s})      ".format(sel_pad, pad_names[sel_pad]))
   else:
@@ -247,7 +235,7 @@ def ncurses_update_possense_win(value):
   posgwin.addch(1, 2 + int(float(value) / 128 * 20), curses.ACS_BLOCK)
 
 def ncurses_input_loop():
-  global sel_pad, sel_cmd, database, auto_pad_sel, do_update_display, do_update_midi_in
+  global do_update_display, do_update_midi_in
   # loop until user presses q
   while (ch := mainwin.getch()) != ord("q") and not SIGINT_received:
     if ch != -1:
@@ -267,123 +255,6 @@ def ncurses_input_loop():
       ncurses_update_param_outputs()
       do_update_display = False
       do_update_midi_in = False
-
-
-################################################################################
-# LCD GUI implementation #######################################################
-################################################################################
-button_name          = {25: "back", 11: "OK", 8: "down", 7: "up", 12: "left", 13: "right"}
-lcd_menu_id          = 0 # 0: main menu, 1: trigger menu
-lcd_shutdown_confirm = False
-
-def lcd_button_handler(pin):
-  global lcd_menu_id
-  if GPIO.input(pin) == 0: # note that button is inverted
-    name       = button_name[pin] # current button name
-    start_time = time.time()
-    # auto press functionality for up/down/left/right buttons
-    if (name == "left") or (name == "down") or (name == "up") or (name == "right"):
-      lcd_on_button_pressed(name, False) # initial button press action
-      auto_press_index = 0
-      while GPIO.input(pin) == 0: # wait for the button up
-        time.sleep(0.01)
-        if time.time() - start_time - 0.7 - auto_press_index * 0.1 > 0: # after 0.7 s, auto press every 100 ms
-          lcd_on_button_pressed(name, False)
-          auto_press_index += 1
-    else:
-      while GPIO.input(pin) == 0 and time.time() - start_time < 0.7: # wait for the button up or time-out
-        time.sleep(0.01)
-      lcd_on_button_pressed(name, time.time() - start_time > 0.7)
-
-def lcd_on_button_pressed(button_name, is_long_press):
-  global lcd_menu_id, lcd_shutdown_confirm, auto_pad_sel
-  if lcd_menu_id == 0: # main menu #####
-    if button_name == "up":
-      process_user_input("k") # change kit
-    elif button_name == "down":
-      process_user_input("K")
-    elif button_name == "right":
-      process_user_input("v") # change kit volume
-    elif button_name == "left":
-      process_user_input("V")
-    elif button_name == "OK" and not is_long_press:
-      if lcd_shutdown_confirm:
-        lcd_shutdown()
-      else:
-        lcd_menu_id = 1 # go into trigger menu
-    elif button_name == "back" and not is_long_press:
-      lcd_shutdown_confirm = False # cancel shutdown procedure
-    elif button_name == "back" and is_long_press:
-      lcd_shutdown()
-  elif lcd_menu_id == 1: # trigger menu #####
-    if button_name == "OK" and not is_long_press:
-      process_user_input("s") # select pad
-    if button_name == "OK" and is_long_press:
-      auto_pad_sel = not auto_pad_sel # toggle auto pad selection
-    elif button_name == "back" and not is_long_press:
-      process_user_input("S")
-    elif button_name == "back" and is_long_press:
-      lcd_menu_id = 0 # long press of "back" returns in main menu
-    elif button_name == "up":
-      process_user_input("c") # select trigger parameter
-    elif button_name == "down":
-      process_user_input("C")
-    elif button_name == "right":
-      process_user_input(chr(259)) # change trigger parameter
-    elif button_name == "left":
-      process_user_input(chr(258))
-  lcd_update()
-
-def lcd_shutdown():
-  global lcd_shutdown_confirm
-  if not lcd_shutdown_confirm:
-    lcd.clear()
-    lcd.cursor_pos = (0, 0)
-    lcd.write_string("Really Shutdown?")
-    lcd_shutdown_confirm = True
-  else:
-    lcd.clear()
-    store_settings()
-    os.system("sudo shutdown -h now")
-
-def lcd_loop():
-  global do_update_display
-  while not SIGINT_received:
-    if do_update_display:
-      lcd_update()
-      do_update_display = False
-    time.sleep(0.1)
-
-def lcd_update():
-  if not lcd_shutdown_confirm: # do not overwrite shutdown question text
-    lcd.clear()
-    lcd.cursor_pos = (0, 0)
-    if lcd_menu_id == 0: # main menu
-      if sel_kit: # only show main menu if selected kit name is available
-        lcd.write_string(sel_kit)
-        if kit_vol_str: # only show kit volume if available
-          lcd.cursor_pos = (1, 0)
-          lcd.write_string("Vol: %s" % kit_vol_str)
-    elif lcd_menu_id == 1: # trigger menu
-      lcd.write_string(("A:" if auto_pad_sel else "") + "%s:%s" % (pad_names[sel_pad], cmd_names[sel_cmd]))
-      lcd.cursor_pos = (1, 4)
-      lcd.write_string("<%s>" % parse_cmd_param(sel_cmd).split(" ")[0]) # split to only show pad type short name
-
-def lcd_init():
-  global lcd
-  lcd = CharLCD(pin_rs = 27, pin_rw = None, pin_e = 17, pins_data = [22, 23, 24, 10],
-                numbering_mode = GPIO.BCM, cols = 16, rows = 2, auto_linebreaks = False)
-  # startup message on LCD
-  lcd.clear()
-  lcd.cursor_pos = (0, 3)
-  lcd.write_string("Edrumulus")
-  lcd.cursor_pos = (1, 2)
-  lcd.write_string("Prototype 5")
-  # buttons initialization
-  GPIO.setmode(GPIO.BCM)
-  for pin in list(button_name.keys()):
-    GPIO.setup(pin, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-    GPIO.add_event_detect(pin, GPIO.BOTH, callback = lcd_button_handler, bouncetime = 20)
 
 
 ################################################################################
@@ -413,6 +284,8 @@ if use_webui:
           if key_value == "s" or key_value == "S":
             time.sleep(0.01)
 
+      if v_major >= 0 and v_minor >= 0:
+        self.wfile.write(bytes("Edrumulus v{0}.{1}".format(v_major, v_minor), "utf-8"))
       self.wfile.write(bytes("""
         <table><tr><td>Pad:</td><td><button type='submit' name='key' value='S'>DOWN</button></td>
                                 <td><button type='submit' name='key' value='s'>UP</button></td></tr>
@@ -528,7 +401,7 @@ def ecasound_apply_kit_volume():
 ################################################################################
 def act_on_midi_in(status, key, value):
   global database, midi_send_val, midi_send_cmd, midi_previous_send_cmd, do_update_midi_in, \
-         v_major, v_minor, hi_hat_ctrl, sel_pad, do_update_display, error_value
+         v_major, v_minor, load_indicator_percent, hi_hat_ctrl, sel_pad, do_update_display, error_value
 
   if status == 0x80: # act on control messages (0x80: Note Off)
     if key in cmd_val:
@@ -537,12 +410,15 @@ def act_on_midi_in(status, key, value):
       if (midi_previous_send_cmd != key) or is_load_settings:
         database[cur_cmd] = max(0, min(cmd_val_rng[cur_cmd], value));
         do_update_midi_in = True;
-    if key == 125: # check for error state
+    elif key == 124: # check for load indicator value
+      load_indicator_percent = value / 127 * 100 # convert to %, where the value range is 0 to 127
+      do_update_display      = True
+    elif key == 125: # check for error state
       error_value       = value
       do_update_display = True
-    if key == 127: # check for major version number
+    elif key == 127: # check for major version number
       v_major = value
-    if key == 126: # check for minor version number
+    elif key == 126: # check for minor version number
       v_minor = value
 
   if (status & 0xF0) == 0x90: # display current note-on received value
@@ -690,9 +566,7 @@ else: # initialize jack midi
       pass # if no Edrumulus hardware was found, no jack is started
 
 # initialize GUI
-if use_lcd:
-  lcd_init()
-elif use_ncurses:
+if use_ncurses:
   ncurses_init()
 elif use_webui:
   web_server = http.server.HTTPServer(("", 8080), WebUI)
@@ -713,25 +587,18 @@ if use_jack: # ecasound is only supported for jack audio mode
   threading.Timer(0.0, ecasound_connection).start()
 
 # main loop
-if no_gui:
-  print("press Return to quit")
-  input() # wait until a key is pressed to quit the application
-elif use_lcd:
-  lcd_loop()
-elif use_ncurses:
+if use_ncurses:
   ncurses_input_loop()
 elif use_webui:
   while not SIGINT_received:
     web_server.handle_request()
 
 # store settings in file
-if not no_gui and not non_block:
+if not non_block:
   store_settings()
 
 # clean up and exit
-if use_lcd:
-  lcd.close() # just this single call is needed
-elif use_ncurses:
+if use_ncurses:
   ncurses_cleanup()
 elif use_webui:
   web_server.server_close()

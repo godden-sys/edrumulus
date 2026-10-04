@@ -21,12 +21,6 @@ if aconnect -l|grep -q Edrumulus; then
   is_teensy=true
 fi
 
-# check if we are running on a Raspberry Pi by checking if the user name is pi
-if [ "$USER" == "pi" ]; then
-  echo "-> Running on a Raspberry pi"
-  is_raspi=true
-fi
-
 # check if we are in Jamulus session mode
 if [[ "$1" == jamulus ]]; then
   echo "-> Jamulus session mode enabled"
@@ -39,12 +33,6 @@ if [[ "$1" == uartjamulus ]]; then
   is_raspi=true # UART connection to ESP32 is only supported on Raspberry Pi
   is_uart=true
   gui_mode="non_block"
-fi
-
-# check if the no GUI mode shall be used
-if [[ "$1" == no_gui ]]; then
-  echo "-> no GUI mode enabled"
-  gui_mode="no_gui"
 fi
 
 # check if direct serial connection to ESP32 shall be used or the default jack audio
@@ -61,14 +49,6 @@ if [[ "$1" == uartgui ]]; then
   echo "-> UART GUI mode enabled"
   is_raspi=true # UART connection to ESP32 is only supported on Raspberry Pi
   is_uart=true
-fi
-
-# check if the LCD GUI mode shall be used
-if [[ "$1" == lcdgui ]]; then
-  echo "-> LCD GUI mode enabled"
-  is_raspi=true # LCD GUI is only supported on Raspberry Pi
-  is_uart=true
-  gui_mode="lcd jack"
 fi
 
 # check if the WebUI GUI mode shall be used
@@ -213,7 +193,7 @@ fi
 # maybe use the following for only closed match: -p close=1.0,position=1.0,diverse=0.0,random=0.0
 # maybe use the following for adjusting the defaults a bit: -p close=0.95,position=1.0,diverse=0.1,random=0.04
 if [[ -v is_raspi ]]; then
-  ./drumgizmo/drumgizmo/drumgizmo -l -L max=2,rampdown=0.02 -p close=1.0,position=1.0,diverse=0.0,random=0.0 -i jackmidi -I midimap=$KITMIDIMAPXML -o jackaudio $KITXML &
+  ./drumgizmo/drumgizmo/drumgizmo -l -L max=5,rampdown=0.02 -p close=1.0,position=1.0,diverse=0.0,random=0.0 -i jackmidi -I midimap=$KITMIDIMAPXML -o jackaudio $KITXML &
 else
   ./drumgizmo/drumgizmo/drumgizmo -p close=1.0,position=1.0,diverse=0.0,random=0.0 -i jackmidi -I midimap=$KITMIDIMAPXML -o jackaudio $KITXML &
 fi
@@ -238,7 +218,7 @@ if [[ -v is_jamulus ]]; then
   else
     ./../../jamulus/Jamulus -n -i ../../jamulus/Jamulus.ini -c $2 &
   fi
-  sleep 5
+  sleep 15
   if [[ -v use_ecasound ]]; then
     jack_disconnect ecasound:out_1 system:playback_1
     jack_disconnect ecasound:out_2 system:playback_2

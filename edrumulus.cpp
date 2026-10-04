@@ -1,19 +1,5 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "edrumulus.h"
 
@@ -24,13 +10,18 @@ Edrumulus::Edrumulus()
   error_LED_blink_time       = round(error_LED_blink_time_s * Fs);
   dc_offset_est_len          = round(dc_offset_est_len_s * Fs);
   samplerate_max_cnt         = round(samplerate_max_cnt_len_s * Fs);
+  load_indicator_max_cnt     = round(load_indicator_max_cnt_len_s * Fs);
   dc_offset_min_limit        = round(ADC_MAX_RANGE / 2 - ADC_MAX_RANGE * dc_offset_max_rel_error);
   dc_offset_max_limit        = round(ADC_MAX_RANGE / 2 + ADC_MAX_RANGE * dc_offset_max_rel_error);
   overload_LED_cnt           = 0;
-  error_LED_cnt              = 0;
   status_is_overload         = false;
   samplerate_prev_micros_cnt = 0;
   samplerate_prev_micros     = 0;
+  use_load_indicator         = false;
+  load_indicator_cnt         = 0;
+  load_indicator_prev_micros = 0;
+  load_indicator_sum         = 0;
+  load_indicator             = -1; // initialize with invalid result
   status_is_error            = false;
   dc_offset_error_channel    = -1;
 #ifdef ESP_PLATFORM
@@ -50,8 +41,8 @@ Edrumulus::Edrumulus()
 
   // calculate DC offset IIR1 low pass filter parameters, see
   // http://www.tsdconseil.fr/tutos/tuto-iir1-en.pdf: gamma = exp(-Ts/tau)
-  dc_offset_iir_gamma           = exp(-1.0f / (Fs * dc_offset_iir_tau_seconds));
-  dc_offset_iir_one_minus_gamma = 1.0f - dc_offset_iir_gamma;
+  dc_offset_iir_gamma           = exp(-1.0 / (Fs * dc_offset_iir_tau_seconds));
+  dc_offset_iir_one_minus_gamma = 1.0f - static_cast<float>(dc_offset_iir_gamma);
 }
 
 void Edrumulus::setup(const int  conf_num_pads,
@@ -85,7 +76,6 @@ void Edrumulus::setup(const int  conf_num_pads,
   {
     edrumulus_hardware.capture_samples(number_pads,
                                        number_inputs,
-                                       analog_pin,
                                        sample_org);
 
     for (int i = 0; i < number_pads; i++)
@@ -114,49 +104,29 @@ void Edrumulus::setup(const int  conf_num_pads,
 
 void Edrumulus::process()
 {
-  /*
-  // TEST for debugging: take samples from Octave, process and return result to Octave
-  if ( Serial.available() > 0 )
-  {
-    static int m = micros(); if ( micros() - m > 500000 ) pad[0].set_velocity_threshold ( 14.938 ); m = micros(); // 17 dB threshold
-    float fIn[2]; fIn[0] = Serial.parseFloat(); fIn[1] = 0.0f;//Serial.parseFloat();
-    bool peak_found_debug, is_rim_shot_debug, is_choke_on_debug, is_choke_off_debug;
-    int  midi_velocity_debug, midi_pos_debug;
-    float y = pad[0].process_sample ( fIn, false, peak_found_debug, midi_velocity_debug, midi_pos_debug, is_rim_shot_debug, is_choke_on_debug, is_choke_off_debug );
-    Serial.println ( y, 7 );
-  }
-  return;
-  */
+  DBG_FCT_OCTAVE_SAMPLE_IMPORT_EXPORT();
 
   // Query samples -------------------------------------------------------------
   // note that this is a blocking function
   edrumulus_hardware.capture_samples(number_pads,
                                      number_inputs,
-                                     analog_pin,
                                      sample_org);
 
-  /*
-  // TEST for plotting all captures samples in the serial plotter (but with low sampling rate)
-  String serial_print;
-  for ( int i = 0; i < number_pads; i++ )
+  DBG_FCT_LOW_SAMPLING_RATE_SAMPLE_MONITOR();
+  DBG_FCT_CAPTURE_ONE_BLOCK_OF_SAMPLES();
+
+  // for load indicator we need to store current time right after blocking function
+  if (use_load_indicator)
   {
-    //if ( !pad[i].get_is_control() )
-    {
-      for ( int j = 0; j < number_inputs[i]; j++ )
-      {
-        serial_print += String ( sample_org[i][j] ) + "\t";
-      }
-    }
+    load_indicator_prev_micros = micros();
   }
-  Serial.println ( serial_print );
-  */
 
   // Process samples -----------------------------------------------------------
   for (int i = 0; i < number_pads; i++)
   {
-    int* sample_org_pad = sample_org[i];
-    peak_found[i]       = false;
-    control_found[i]    = false;
+    uint16_t* sample_org_pad = sample_org[i];
+    peak_found[i]            = false;
+    control_found[i]         = false;
 
     if (pad[i].get_is_control())
     {
@@ -168,10 +138,11 @@ void Edrumulus::process()
       // prepare samples for processing
       for (int j = 0; j < number_inputs[i]; j++)
       {
+        double&    cur_dc_offset       = dc_offset[i][j];
         const bool is_rim_switch_input = (j == 1) && pad[i].get_is_rim_switch(); // rim is always on second channel
 
         // overload detection: check for the lowest/largest possible ADC range values with noise consideration
-        if (sample_org_pad[j] >= (ADC_MAX_RANGE - ADC_MAX_NOISE_AMPL))
+        if (sample_org_pad[j] >= ADC_MAX_RANGE - ADC_MAX_NOISE_AMPL)
         {
           overload_LED_cnt     = overload_LED_on_time;
           overload_detected[j] = 2;
@@ -191,11 +162,11 @@ void Edrumulus::process()
         // held for a while by the user)
         if (!(is_rim_switch_input && pad[i].get_is_rim_switch_on()))
         {
-          dc_offset[i][j] = dc_offset_iir_gamma * dc_offset[i][j] + dc_offset_iir_one_minus_gamma * sample_org_pad[j];
+          cur_dc_offset = dc_offset_iir_gamma * cur_dc_offset + dc_offset_iir_one_minus_gamma * sample_org_pad[j];
         }
 
         // compensate DC offset
-        sample[j] = sample_org_pad[j] - dc_offset[i][j];
+        sample[j] = sample_org_pad[j] - static_cast<float>(cur_dc_offset);
 
         // ADC spike cancellation (do not use spike cancellation for rim switches since they have short peaks)
         if ((spike_cancel_level > 0) && !is_rim_switch_input)
@@ -347,14 +318,32 @@ void Edrumulus::process()
     status_is_overload = (overload_LED_cnt > 0);
   }
 
+  // Load indicator ------------------------------------------------------------
+  load_indicator = -1; // always default to -1 first
+
+  if (use_load_indicator)
+  {
+    load_indicator_sum += micros() - load_indicator_prev_micros;
+    load_indicator_cnt++;
+
+    if (load_indicator_cnt >= load_indicator_max_cnt)
+    {
+      // calculate load indicator value in range 0 to 127
+      const float avg_micros = static_cast<float>(load_indicator_sum) / load_indicator_max_cnt;
+      load_indicator         = round(avg_micros / 1e6f * Fs * 127.0f);
+      load_indicator         = max(0, min(127, load_indicator));
+      load_indicator_sum     = 0;
+      load_indicator_cnt     = 0;
+    }
+  }
+
   // Sampling rate and DC offset check -----------------------------------------
   // (i.e. if CPU is overloaded, the sample rate will drop which is bad)
+  samplerate_prev_micros_cnt++;
+
   if (samplerate_prev_micros_cnt >= samplerate_max_cnt)
   {
     const unsigned long samplerate_cur_micros = micros();
-
-    // TEST check the measured sampling rate
-    // Serial.println ( 1.0f / ( samplerate_cur_micros - samplerate_prev_micros ) * samplerate_max_cnt * 1e6f, 7 );
 
     // do not update status if micros() has wrapped around (at about 70 minutes) and if
     // we have the very first measurement after start (previous micros set to 0)
@@ -375,9 +364,8 @@ void Edrumulus::process()
       {
         for (int j = 0; j < number_inputs[i]; j++)
         {
-          const float& cur_dc_offset = dc_offset[i][j];
-          // Serial.println ( String ( i ) + ", " + String ( cur_dc_offset ) ); // TEST for plotting all DC offsets
-          if ((cur_dc_offset < dc_offset_min_limit) || (cur_dc_offset > dc_offset_max_limit))
+          // Serial.println(String(i) + ", " + String(cur_dc_offset)); // TEST for plotting all DC offsets
+          if ((dc_offset[i][j] < dc_offset_min_limit) || (dc_offset[i][j] > dc_offset_max_limit))
           {
             status_is_error         = true;
             dc_offset_error_channel = i + 32 * j; // 0 to 31: input 0, 32 to 63: input 1
@@ -386,8 +374,6 @@ void Edrumulus::process()
       }
     }
   }
-  samplerate_prev_micros_cnt++;
-  error_LED_cnt++;
 }
 
 void Edrumulus::set_coupled_pad_idx(const int pad_idx, const int new_idx)
