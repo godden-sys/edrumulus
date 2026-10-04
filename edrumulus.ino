@@ -79,20 +79,20 @@ void write_all_settings();
 #endif
 
 #ifdef USE_BLE_MIDI
-#  define MIDI_SERVICE_UUID        "03b80e5a-ede8-4b33-a751-6ce34ec4c700"
+#  define MIDI_SERVICE_UUID "03b80e5a-ede8-4b33-a751-6ce34ec4c700"
 #  define MIDI_CHARACTERISTIC_UUID "7772e5db-3868-4112-a1a9-f2669d106bf3"
 
-BLECharacteristic *p_ble_midi_characteristic = nullptr;
-bool ble_midi_device_connected = false;
+BLECharacteristic* p_ble_midi_characteristic = nullptr;
+bool               ble_midi_device_connected = false;
 
 class BleMidiServerCallbacks : public BLEServerCallbacks
 {
-  void onConnect(BLEServer *p_server)
+  void onConnect(BLEServer* p_server)
   {
     ble_midi_device_connected = true;
   }
 
-  void onDisconnect(BLEServer *p_server)
+  void onDisconnect(BLEServer* p_server)
   {
     ble_midi_device_connected = false;
     BLEDevice::startAdvertising();
@@ -101,7 +101,7 @@ class BleMidiServerCallbacks : public BLEServerCallbacks
 
 class BleMidiCharacteristicCallbacks : public BLECharacteristicCallbacks
 {
-  void onWrite(BLECharacteristic *p_characteristic)
+  void onWrite(BLECharacteristic* p_characteristic)
   {
     std::string rx_value = p_characteristic->getValue();
     if (rx_value.empty())
@@ -109,7 +109,7 @@ class BleMidiCharacteristicCallbacks : public BLECharacteristicCallbacks
       return;
     }
 
-    int byte_index = 0;
+    int     byte_index     = 0;
     uint8_t running_status = 0;
 
     while (byte_index < static_cast<int>(rx_value.size()))
@@ -144,8 +144,8 @@ class BleMidiCharacteristicCallbacks : public BLECharacteristicCallbacks
         break;
       }
 
-      const uint8_t data_byte1 = static_cast<uint8_t>(rx_value[byte_index++]);
-      uint8_t data_byte2 = 0;
+      const uint8_t data_byte1    = static_cast<uint8_t>(rx_value[byte_index++]);
+      uint8_t       data_byte2    = 0;
       const uint8_t status_nibble = running_status >> 4;
 
       if (status_nibble != 0xC && status_nibble != 0xD)
@@ -158,7 +158,7 @@ class BleMidiCharacteristicCallbacks : public BLECharacteristicCallbacks
       }
 
       const int controller = data_byte1;
-      const int value = data_byte2;
+      const int value      = data_byte2;
       if (running_status == 0xB0)
       {
         if (controller == 102)
@@ -320,10 +320,10 @@ void ble_midi_setup()
 {
   BLEDevice::init("Edrumulus");
 
-  BLEServer *p_server = BLEDevice::createServer();
+  BLEServer* p_server = BLEDevice::createServer();
   p_server->setCallbacks(new BleMidiServerCallbacks());
 
-  BLEService *p_service = p_server->createService(BLEUUID(MIDI_SERVICE_UUID));
+  BLEService* p_service     = p_server->createService(BLEUUID(MIDI_SERVICE_UUID));
   p_ble_midi_characteristic = p_service->createCharacteristic(
       BLEUUID(MIDI_CHARACTERISTIC_UUID),
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_WRITE_NR);
@@ -335,11 +335,11 @@ void ble_midi_setup()
   p_server->getAdvertising()->start();
 }
 
-void ble_midi_send_packet(const uint8_t *packet, const int length)
+void ble_midi_send_packet(const uint8_t* packet, const int length)
 {
   if (ble_midi_device_connected && p_ble_midi_characteristic != nullptr)
   {
-    p_ble_midi_characteristic->setValue(const_cast<uint8_t *>(packet), static_cast<uint16_t>(length));
+    p_ble_midi_characteristic->setValue(const_cast<uint8_t*>(packet), static_cast<uint16_t>(length));
     p_ble_midi_characteristic->notify();
   }
 }
@@ -395,9 +395,9 @@ void setup()
   int*      analog_pins         = analog_pins4;         // initialize with the default setup
   int*      analog_pins_rimshot = analog_pins_rimshot4; // initialize with the default setup
   const int prototype           = Edrumulus_hardware::get_prototype_pins(&analog_pins,
-                                                               &analog_pins_rimshot,
-                                                               &number_pads,
-                                                               &status_LED_pin);
+                                                                         &analog_pins_rimshot,
+                                                                         &number_pads,
+                                                                         &status_LED_pin);
 
   // initialize GPIO port for status LED and set it to on during setup
   pinMode(status_LED_pin, OUTPUT);
@@ -483,23 +483,23 @@ void loop()
         {
           // > 63 means DC offset error and pad/input index is coded in one value
           MYMIDI.sendNoteOff(125, 64 + dc_offset_error_channel, 1);
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
           if (ble_midi_device_connected)
           {
             ble_midi_send_note_off(125, 64 + dc_offset_error_channel, 1);
           }
-#endif
+#  endif
         }
         else
         {
           // 1 means to set error state
           MYMIDI.sendNoteOff(125, 1, 1);
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
           if (ble_midi_device_connected)
           {
             ble_midi_send_note_off(125, 1, 1);
           }
-#endif
+#  endif
         }
       }
 #endif
@@ -513,12 +513,12 @@ void loop()
       is_status_LED_on = false;
 #ifdef USE_MIDI
       MYMIDI.sendNoteOff(125, 0, 1); // 0 means that all errors are cleared
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
       if (ble_midi_device_connected)
       {
         ble_midi_send_note_off(125, 0, 1);
       }
-#endif
+#  endif
 #endif
     }
   }
@@ -538,12 +538,12 @@ void loop()
       {
         const int midi_pos = edrumulus.get_midi_pos(pad_idx);
         MYMIDI.sendControlChange(16, midi_pos, midi_channel); // positional sensing
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
         if (ble_midi_device_connected)
         {
           ble_midi_send_control_change(16, midi_pos, midi_channel);
         }
-#endif
+#  endif
       }
 
       // send Hi-Hat control message right before each Hi-Hat pad hit
@@ -563,13 +563,13 @@ void loop()
 
       MYMIDI.sendNoteOn(midi_note, midi_velocity, midi_channel); // (note, velocity, channel)
       MYMIDI.sendNoteOff(midi_note, 0, midi_channel);            // we need a note off
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
       if (ble_midi_device_connected)
       {
         ble_midi_send_note_on(midi_note, midi_velocity, midi_channel);
         ble_midi_send_note_off(midi_note, 0, midi_channel);
       }
-#endif
+#  endif
     }
 
     if (edrumulus.get_control_found(pad_idx))
@@ -577,12 +577,12 @@ void loop()
       const int midi_ctrl_ch    = edrumulus.get_midi_ctrl_ch(pad_idx);
       const int midi_ctrl_value = edrumulus.get_midi_ctrl_value(pad_idx);
       MYMIDI.sendControlChange(midi_ctrl_ch, midi_ctrl_value, midi_channel);
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
       if (ble_midi_device_connected)
       {
         ble_midi_send_control_change(midi_ctrl_ch, midi_ctrl_value, midi_channel);
       }
-#endif
+#  endif
     }
 
     if (edrumulus.get_choke_on_found(pad_idx))
@@ -595,13 +595,13 @@ void loop()
         const int midi_choke_noteon = edrumulus.get_midi_note_open_norm(pad_idx);
         MYMIDI.sendNoteOn(midi_choke_noteon, 127, midi_channel);
         MYMIDI.sendNoteOff(midi_choke_noteon, 0, midi_channel); // we need a note off
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
         if (ble_midi_device_connected)
         {
           ble_midi_send_note_on(midi_choke_noteon, 127, midi_channel);
           ble_midi_send_note_off(midi_choke_noteon, 0, midi_channel);
         }
-#endif
+#  endif
       }
       else
       {
@@ -610,7 +610,7 @@ void loop()
         MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_rim(pad_idx), 127, midi_channel);
         MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_open_norm(pad_idx), 127, midi_channel);
         MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_open_rim(pad_idx), 127, midi_channel);
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
         if (ble_midi_device_connected)
         {
           ble_midi_send_after_touch(edrumulus.get_midi_note_norm(pad_idx), 127, midi_channel);
@@ -618,7 +618,7 @@ void loop()
           ble_midi_send_after_touch(edrumulus.get_midi_note_open_norm(pad_idx), 127, midi_channel);
           ble_midi_send_after_touch(edrumulus.get_midi_note_open_rim(pad_idx), 127, midi_channel);
         }
-#endif
+#  endif
       }
     }
     else if (edrumulus.get_choke_off_found(pad_idx))
@@ -628,7 +628,7 @@ void loop()
       MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_rim(pad_idx), 0, midi_channel);
       MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_open_norm(pad_idx), 0, midi_channel);
       MYMIDI.MIDI_SEND_AFTER_TOUCH(edrumulus.get_midi_note_open_rim(pad_idx), 0, midi_channel);
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
       if (ble_midi_device_connected)
       {
         ble_midi_send_after_touch(edrumulus.get_midi_note_norm(pad_idx), 0, midi_channel);
@@ -636,7 +636,7 @@ void loop()
         ble_midi_send_after_touch(edrumulus.get_midi_note_open_norm(pad_idx), 0, midi_channel);
         ble_midi_send_after_touch(edrumulus.get_midi_note_open_rim(pad_idx), 0, midi_channel);
       }
-#endif
+#  endif
     }
   }
 
@@ -886,7 +886,7 @@ void confirm_setting(const int  controller,
     // return only the given parameter
     MYMIDI.sendNoteOff(controller, value, 1); // can be checked, e.g., in the log file
   }
-#ifdef USE_BLE_MIDI
+#  ifdef USE_BLE_MIDI
   if (ble_midi_device_connected)
   {
     if (send_all)
@@ -919,7 +919,7 @@ void confirm_setting(const int  controller,
       ble_midi_send_control_change(controller, value, midi_channel);
     }
   }
-#endif
+#  endif
 }
 #endif
 
