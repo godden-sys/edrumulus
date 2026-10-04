@@ -1,19 +1,5 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "edrumulus.h"
 
@@ -278,6 +264,20 @@ void Pad::apply_preset_pad_settings()
       break;
 
     // Cymbal pads -------------------------------------------------------------
+    case HD120: // dual trigger (advertised as single trigger)
+      pad_settings.is_rim_switch        = true;
+      pad_settings.scan_time_ms         = 4.5f;
+      pad_settings.decay_grad_fact2     = 90.0f;
+      pad_settings.decay_len2_ms        = 500.0f;
+      pad_settings.rim_use_low_freq_bp  = false;
+      pad_settings.rim_shot_is_used     = true;
+      pad_settings.rim_shot_threshold   = 24;
+      pad_settings.rim_shot_boost       = 0;
+      pad_settings.velocity_threshold   = 8;
+      pad_settings.velocity_sensitivity = 4;
+      pad_settings.curve_type           = EXP2;
+      break;
+
     case CY5: // dual trigger
       pad_settings.is_rim_switch        = true;
       pad_settings.velocity_threshold   = 6;

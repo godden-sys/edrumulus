@@ -3,7 +3,7 @@
 echo "This script flashes the ESP32 micro controller installed on Edrumulus Prototype 5."
 
 # check if we are running on a Raspberry Pi by checking if the user name is pi
-if [ ! $USER = "pi" ]; then
+if [ ! $USER = "corrados" ]; then
   echo "Error: This script must be run on a Raspberry pi."
   exit 1
 fi
@@ -45,7 +45,13 @@ pigs w 9 1
 #esptool.py -p /dev/serial0 erase_flash
 
 
-esptool.py --chip esp32 --port /dev/serial0 write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0xe000 flash_esp32_bin/boot_app0.bin 0x1000 flash_esp32_bin/bootloader_dio_80m.bin 0x10000 flash_esp32_bin/edrumulus.ino.bin 0x8000 flash_esp32_bin/edrumulus.ino.partitions.bin
+# NOTE The following flash configuration does not work for my old esptool.py script. I assume that
+#      with a new esptool.py it will work but this has not yet be verified!
+
+# taken from Arduino IDE v2.3.6 with esp32 v3.3.4 command window after pressing Upload button
+# path to boot file: /home/[user]/.arduino15/packages/esp32/hardware/esp32/3.3.4/tools/partitions/boot_app0.bin
+cd /home/corrados/.venv/bin
+./python3 esptool.py --chip esp32 --port /dev/serial0 write_flash write-flash -z --flash-mode keep --flash-freq keep --flash-size keep 0x1000 /home/corrados/edrumulus/tools/flash_esp32_bin/edrumulus.ino.bootloader.bin 0x8000 /home/corrados/edrumulus/tools/flash_esp32_bin/edrumulus.ino.partitions.bin 0xe000 /home/corrados/edrumulus/tools/flash_esp32_bin/boot_app0.bin 0x10000 /home/corrados/edrumulus/tools/flash_esp32_bin/edrumulus.ino.bin
 
 
 # set IO0 to non-flash mode and reboot ESP32 -----------------------------------

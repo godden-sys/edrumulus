@@ -1,19 +1,5 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
@@ -52,7 +38,8 @@ class Pad
     MPS750X_RIDE  = 24,
     MPS750X_CRASH = 25,
     LEHHS12C      = 26,
-    LEHHS12C_CTRL = 27
+    LEHHS12C_CTRL = 27,
+    HD120         = 28
   };
 
   enum Ecurvetype // note that the enums need assigned integers for MIDI settings transfer
@@ -84,11 +71,11 @@ class Pad
                        bool&        is_choke_on,
                        bool&        is_choke_off);
 
-  void process_control_sample(const int* input,
-                              bool&      change_found,
-                              int&       midi_ctrl_value,
-                              bool&      peak_found,
-                              int&       midi_velocity);
+  void process_control_sample(const uint16_t* input,
+                              bool&           change_found,
+                              int&            midi_ctrl_value,
+                              bool&           peak_found,
+                              int&            midi_velocity);
 
   void     set_pad_type(const Epadtype new_pad_type);
   Epadtype get_pad_type() { return pad_settings.pad_type; }
@@ -263,14 +250,14 @@ class Pad
   static const int ctrl_history_len   = 10;  // (MUST BE AN EVEN VALUE) control history length; the longer, the more noise reduction but more delay
 
   // band-pass filter coefficients (they are constant and must not be changed)
-  const int   bp_filt_len           = 5;
-  const float bp_filt_a[4]          = {0.6704579059531744f, -2.930427216820138f, 4.846289804288025f, -3.586239808116909f};
-  const float bp_filt_b[5]          = {0.01658193166930305f, 0.0f, -0.0331638633386061f, 0.0f, 0.01658193166930305f};
-  const float rim_bp_low_freq_a[4]  = {0.8008026466657076f, -3.348944421626415f, 5.292099516163272f, -3.743650976941178f};
-  const float rim_bp_low_freq_b[5]  = {0.005542717210280682f, 0.0f, -0.01108543442056136f, 0.0f, 0.005542717210280682f};
-  const float rim_bp_high_freq_a[4] = {0.8008026466657077f, -3.021126408169798f, 4.637919662489649f, -3.377196335768073f};
-  const float rim_bp_high_freq_b[5] = {0.00554271721028068f, 0.0f, -0.01108543442056136f, 0.0f, 0.00554271721028068f};
-  const int   x_filt_delay          = 5;
+  static inline constexpr int   bp_filt_len           = 5;
+  static inline constexpr float bp_filt_a[4]          = {0.6704579059531744f, -2.930427216820138f, 4.846289804288025f, -3.586239808116909f};
+  static inline constexpr float bp_filt_b[5]          = {0.01658193166930305f, 0.0f, -0.0331638633386061f, 0.0f, 0.01658193166930305f};
+  const float                   rim_bp_low_freq_a[4]  = {0.8008026466657076f, -3.348944421626415f, 5.292099516163272f, -3.743650976941178f};
+  const float                   rim_bp_low_freq_b[5]  = {0.005542717210280682f, 0.0f, -0.01108543442056136f, 0.0f, 0.005542717210280682f};
+  const float                   rim_bp_high_freq_a[4] = {0.8008026466657077f, -3.021126408169798f, 4.637919662489649f, -3.377196335768073f};
+  const float                   rim_bp_high_freq_b[5] = {0.00554271721028068f, 0.0f, -0.01108543442056136f, 0.0f, 0.00554271721028068f};
+  const int                     x_filt_delay          = 5;
 
   // ADC noise scaling after band-pass filtering (e.g., for the Teensy ADC the noise has high
   // energy at high frequencies which are cut by the band-pass filter) -> hardware dependend parameter

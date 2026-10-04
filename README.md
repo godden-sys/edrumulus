@@ -69,13 +69,13 @@ A gallery of user implementations of Edrumulus prototypes [can be found here](do
 
 ## Links
 
+- [EavesDrum](https://eavesdrum.io) ([Source code](https://github.com/tobigun/EavesDrum))
+
 - [eXaDrums](https://exadrums.com) ([Hackaday](https://hackaday.io/project/9350-exadrums), [Source code](https://github.com/SpintroniK/libeXaDrums))
 
 - [Drumidy](https://hackaday.io/project/176712-drumidy-electronic-midi-drum-controller) ([Source code](https://github.com/EvgenyD/Drumidy)): Uses a STM32 processor with 18 inputs and supports re-trigger cancellation.
 
 - [open e-drums](https://open-e-drums.com) ([Source code](https://github.com/RyoKosaka/HelloDrum-arduino-Library))
-
-- [Arduino Leanordo Midi Drum Kit](https://hoeser-medien.de/2016/11/arduino-leanordo-midi-drum-kit): Uses some re-trigger cancellation. The source code can be found embedded in the web page.
 
 - [An Arduino based standalone drum kit Hackaday](https://hackaday.io/project/171929-an-arduino-based-standalone-drum-kit) ([Source code](https://hackaday.io/project/171929-an-arduino-based-standalone-drum-kit#menu-files)): Generates audio, too.
 

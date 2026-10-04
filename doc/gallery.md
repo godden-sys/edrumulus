@@ -1,5 +1,10 @@
 # Edrumulus Gallery of User Implementations
 
+## 3hhh
+
+<br/>![3hhh Prototype](images/gallery_3hhh_1.jpg)
+![3hhh Prototype](images/gallery_3hhh_2.jpg)
+
 ## thijstriemstra
 
 <br/>![thijstriemstra Prototype](images/gallery_thijstriemstra1.jpg)
@@ -7,6 +12,17 @@
 
 <br/>[<img src="https://img.youtube.com/vi/YWE1LgwQbbQ/0.jpg" width="500">](https://www.youtube.com/watch?v=YWE1LgwQbbQ)
 
+## analogbetateam
+
+<br/>![analogbetateam Prototype](images/gallery_analogbetateam1.jpg)
+![analogbetateam Prototype Inside](images/gallery_analogbetateam2.jpg)
+
+<br/>[<img src="https://img.youtube.com/vi/lJCxvKZ8xkM/0.jpg" width="500">](https://www.youtube.com/watch?v=lJCxvKZ8xkM)
+
+## shepss123
+
+<br/>![shepss123 Prototype Inside](images/gallery_shepss123_1.jpg)
+![shepss123 Prototype](images/gallery_shepss123_2.jpg)
 
 ## ryanalexmartin
 

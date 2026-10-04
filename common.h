@@ -1,23 +1,14 @@
-/******************************************************************************\
- * Copyright (c) 2020-2024
- * Author(s): Volker Fischer
- ******************************************************************************
- * This program is free software; you can redistribute it and/or modify it under
- * the terms of the GNU General Public License as published by the Free Software
- * Foundation; either version 2 of the License, or (at your option) any later
- * version.
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
- * FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
- * details.
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
-\******************************************************************************/
+// Copyright (c) 2020-2026 Volker Fischer
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
+#define USE_MIDI
+
 // #define USE_SERIAL_DEBUG_PLOTTING
+// #define USE_OCTAVE_SAMPLE_IMPORT_EXPORT
+// #define USE_LOW_SAMPLING_RATE_SAMPLE_MONITOR
+// #define USE_CAPTURE_ONE_BLOCK_OF_SAMPLES
 
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 10
@@ -30,11 +21,12 @@ inline void update_fifo(const float input,
                         float*      fifo_memory)
 {
   // move all values in the history one step back and put new value on the top
-  for (int i = 0; i < fifo_length - 1; i++)
+  const int fifo_length_minus_one = fifo_length - 1;
+  for (int i = 0; i < fifo_length_minus_one; i++)
   {
     fifo_memory[i] = fifo_memory[i + 1];
   }
-  fifo_memory[fifo_length - 1] = input;
+  fifo_memory[fifo_length_minus_one] = input;
 }
 
 inline void allocate_initialize(float**   array_memory,
@@ -82,3 +74,61 @@ class FastWriteFIFO
   int    pointer;
   int    fifo_length;
 };
+
+// Debugging functions ---------------------------------------------------------
+// Debugging: take samples from Octave, process and return result to Octave
+#ifdef USE_OCTAVE_SAMPLE_IMPORT_EXPORT
+#  undef USE_MIDI
+#  define DBG_FCT_OCTAVE_SAMPLE_IMPORT_EXPORT()                                                                                                                   \
+    if (Serial.available() > 0)                                                                                                                                   \
+    {                                                                                                                                                             \
+      static int m = micros();                                                                                                                                    \
+      if (micros() - m > 500000) pad[0].set_velocity_threshold(14.938);                                                                                           \
+      m         = micros();                                                                                                                                       \
+      float fIn = Serial.parseFloat();                                                                                                                            \
+      float y   = pad[0].process_sample(&fIn, 1, overload_detected, peak_found[0], midi_velocity[0], midi_pos[0], rim_state[0], is_choke_on[0], is_choke_off[0]); \
+      Serial.println(y, 7);                                                                                                                                       \
+    }                                                                                                                                                             \
+    return;
+#else
+#  define DBG_FCT_OCTAVE_SAMPLE_IMPORT_EXPORT()
+#endif
+
+// Debugging: for plotting all captures samples in the serial plotter (but with low sampling rate)
+#ifdef USE_LOW_SAMPLING_RATE_SAMPLE_MONITOR
+#  undef USE_MIDI
+#  define DBG_FCT_LOW_SAMPLING_RATE_SAMPLE_MONITOR()     \
+    String serial_print;                                 \
+    for (int i = 0; i < number_pads; i++)                \
+    {                                                    \
+      for (int j = 0; j < number_inputs[i]; j++)         \
+      {                                                  \
+        serial_print += String(sample_org[i][j]) + "\t"; \
+      }                                                  \
+    }                                                    \
+    Serial.println(serial_print);
+#else
+#  define DBG_FCT_LOW_SAMPLING_RATE_SAMPLE_MONITOR()
+#endif
+
+// Debugging: capture one block of samples
+#ifdef USE_CAPTURE_ONE_BLOCK_OF_SAMPLES
+#  undef USE_MIDI
+#  define DBG_FCT_CAPTURE_ONE_BLOCK_OF_SAMPLES()    \
+    const int       number_samples = 9000;          \
+    static uint16_t s[number_samples];              \
+    static int      cnt = 0;                        \
+    if (cnt >= 0) s[cnt] = sample_org[0][0];        \
+    cnt++;                                          \
+    if (cnt >= number_samples)                      \
+    {                                               \
+      cnt = 0;                                      \
+      Serial.println(String(0) + "\t" + String(0)); \
+      for (int j = 0; j < number_samples; j++)      \
+      {                                             \
+        Serial.println(s[j]);                       \
+      }                                             \
+    }
+#else
+#  define DBG_FCT_CAPTURE_ONE_BLOCK_OF_SAMPLES()
+#endif
