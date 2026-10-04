@@ -32,10 +32,10 @@ MIDI_CREATE_DEFAULT_INSTANCE();
 #    define MIDI_SEND_AFTER_TOUCH sendAfterTouch
 #    define MIDI_SERIAL 38400
 #    ifdef USE_BLE_MIDI
+#      include <BLE2902.h>
 #      include <BLEDevice.h>
 #      include <BLEServer.h>
 #      include <BLEUtils.h>
-#      include <BLE2902.h>
 #    endif
 #  endif
 #  ifdef TEENSYDUINO
@@ -377,10 +377,8 @@ void setup()
   // get the pin-to-pad assignments
   int*      analog_pins         = analog_pins4;         // initialize with the default setup
   int*      analog_pins_rimshot = analog_pins_rimshot4; // initialize with the default setup
-  const int prototype           = Edrumulus_hardware::get_prototype_pins(&analog_pins,
-                                                                         &analog_pins_rimshot,
-                                                                         &number_pads,
-                                                                         &status_LED_pin);
+  const int prototype = Edrumulus_hardware::get_prototype_pins(
+      &analog_pins, &analog_pins_rimshot, &number_pads, &status_LED_pin);
 
   // initialize GPIO port for status LED and set it to on during setup
   pinMode(status_LED_pin, OUTPUT);
