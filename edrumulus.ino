@@ -55,11 +55,10 @@ int       status_LED_pin    = 0;            // initialization value, will be set
 bool      is_status_LED_on  = false;        // initialization value
 int       selected_pad      = 0;            // initialization value
 
-#ifdef USE_BLE_MIDI
 void confirm_setting(const int controller, const int value, const bool send_all);
 void preset_settings();
 void write_all_settings();
-#endif
+void read_settings();
 
 #ifdef USE_BLE_MIDI
 #  define MIDI_SERVICE_UUID "03b80e5a-ede8-4b33-a751-6ce34ec4c700"
@@ -372,52 +371,6 @@ void ble_midi_send_after_touch(const int note, const int pressure, const int cha
 }
 #endif
 
-void setup()
-{
-  // get the pin-to-pad assignments
-  int*      analog_pins         = analog_pins4;         // initialize with the default setup
-  int*      analog_pins_rimshot = analog_pins_rimshot4; // initialize with the default setup
-  const int prototype           = Edrumulus_hardware::get_prototype_pins(
-      &analog_pins, &analog_pins_rimshot, &number_pads, &status_LED_pin);
-
-  // initialize GPIO port for status LED and set it to on during setup
-  pinMode(status_LED_pin, OUTPUT);
-  digitalWrite(status_LED_pin, HIGH);
-
-#if defined(USE_SERIAL_DEBUG_PLOTTING) && defined(ESP_PLATFORM)
-  number_pads = min(number_pads, 7); // only max. 7 pads are supported for ESP32 serial debug plotting
-#endif
-#ifdef USE_MIDI
-#  ifdef USE_TINYUSB
-  TinyUSBDevice.setProductDescriptor("Edrumulus");
-#  endif
-  MYMIDI.begin();
-#endif
-#ifdef MIDI_SERIAL
-  if (prototype == 5)
-  {
-    Serial.begin(115200); // faster communication on prototype 5
-  }
-  else
-  {
-    Serial.begin(MIDI_SERIAL);
-  }
-#else
-  Serial.begin(115200);
-#endif
-
-  edrumulus.setup(number_pads, analog_pins, analog_pins_rimshot);
-  digitalWrite(status_LED_pin, LOW); // set board LED to low right after setup is done
-#ifdef USE_BLE_MIDI
-  ble_midi_setup();
-#endif
-#ifdef ESP_PLATFORM
-  preset_settings(); // for ESP32, the load/save of settings is not supported, preset instead
-#else
-  read_settings();
-#endif
-}
-
 void preset_settings()
 {
   // default MIDI note assignments
@@ -444,6 +397,49 @@ void preset_settings()
   edrumulus.set_pad_type(7, Pad::TP80); // tom 2
   edrumulus.set_pad_type(8, Pad::TP80); // tom 3
   edrumulus.set_pad_type(9, Pad::CY6);  // crash 2
+}
+
+void setup()
+{
+  // get the pin-to-pad assignments
+  int*      analog_pins         = analog_pins4;         // initialize with the default setup
+  int*      analog_pins_rimshot = analog_pins_rimshot4; // initialize with the default setup
+  const int prototype           = Edrumulus_hardware::get_prototype_pins(
+      &analog_pins, &analog_pins_rimshot, &number_pads, &status_LED_pin);
+
+  // initialize GPIO port for status LED and set it to on during setup
+  pinMode(status_LED_pin, OUTPUT);
+  digitalWrite(status_LED_pin, HIGH);
+
+#if defined(USE_SERIAL_DEBUG_PLOTTING) && defined(ESP_PLATFORM)
+  number_pads = min(number_pads, 7); // only max. 7 pads are supported for ESP32 serial debug plotting
+#endif
+#ifdef USE_MIDI
+  MYMIDI.begin();
+#endif
+#ifdef MIDI_SERIAL
+  if (prototype == 5)
+  {
+    Serial.begin(115200); // faster communication on prototype 5
+  }
+  else
+  {
+    Serial.begin(MIDI_SERIAL);
+  }
+#else
+  Serial.begin(115200);
+#endif
+
+  edrumulus.setup(number_pads, analog_pins, analog_pins_rimshot);
+  digitalWrite(status_LED_pin, LOW); // set board LED to low right after setup is done
+#ifdef USE_BLE_MIDI
+  ble_midi_setup();
+#endif
+#ifdef ESP_PLATFORM
+  preset_settings(); // for ESP32, the load/save of settings is not supported, preset instead
+#else
+  read_settings();
+#endif
 }
 
 void loop()
